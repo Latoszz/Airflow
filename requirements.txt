@@ -1,0 +1,9 @@
+gspread
+kagglehub
+pandas
+requests
+scikit-learn
+apache-airflow
+protobuf
+cryptography
+google-api-python-client

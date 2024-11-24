@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="PYTHON_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$">
+      <excludeFolder url="file://$MODULE_DIR$/.venv" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/dag_id=data_download_push_to_sheets" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/dag_id=data_preparation_pipeline" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/dag_id=download_data_and_upload" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/dag_id=fetch_data_to_google_sheet_data" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/dag_id=outfirstdag" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/dag_processor_manager" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/scheduler" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>
