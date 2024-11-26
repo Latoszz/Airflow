@@ -1,9 +1,8 @@
-gspread
 kagglehub
+nltk
+numpy
 pandas
-requests
-scikit-learn
+matspy
 apache-airflow
-protobuf
-cryptography
-google-api-python-client
+scikit-learn
+pycaret
