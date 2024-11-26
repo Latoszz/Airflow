@@ -1,6 +1,8 @@
 import base64
+import os
 import pickle
 import re
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from matspy import spy_to_mpl
 import nltk
 from nltk.tokenize import word_tokenize
@@ -17,16 +19,15 @@ default_args = {
     'depends_on_past': False,
     'email_on_failure': False,
     'email_on_retry': False,
-    'start_date': datetime(2024, 11, 24),
+    'start_date': datetime(2024, 1, 1),
     'schedule_interval': None,
     'catchup': False,
     'retries': 1,
-    'retry_delay': timedelta(minutes=5),
+    'retry_delay': timedelta(minutes=1),
 }
 
-nltk.download('punkt')
-
-
+#[2024-11-26, 19:58:53 UTC] {warnings.py:110} WARNING - /home/***/.local/lib/python3.11/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'sexist 4. prejudiced discussions -supporting systemic discrimination against women as a group') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
+#TODO why problem with only (this label)
 def download_data(**kwargs):
     # Download dataset
     path = kagglehub.dataset_download("aadyasingh55/sexism-detection-in-english-texts")
@@ -35,7 +36,7 @@ def download_data(**kwargs):
     test_data = pd.read_csv(f'{path}/test (1).csv')
     # Combine the data
     df = pd.concat([dev_data, train_data, test_data], ignore_index=True)
-
+    print(df.shape)
     kwargs['ti'].xcom_push(key='data', value=df)
 
 
@@ -45,6 +46,7 @@ def drop_na(**kwargs):
 
     df.replace('', np.nan, inplace=True)
     df.dropna(how='any', inplace=True)
+    print(df.shape)
 
     ti.xcom_push(key=f'data', value=df)
 
@@ -57,6 +59,7 @@ def modify_labels(**kwargs):
 
     df['labels'] = df['labels'].replace('not sexist none none', 'not sexist')
     df = df[["text", "labels"]]
+    print(df.shape)
 
     ti.xcom_push(key=f'data', value=df)
 
@@ -79,6 +82,7 @@ def custom_tokenizer(text):
 
 # Vectorize data
 def vectorize_data(vectorizer=None, **kwargs):
+    nltk.download('punkt_tab')
     ti = kwargs['ti']
     df = ti.xcom_pull(key=f'data', task_ids=f'drop_duplicates')
 
@@ -122,12 +126,17 @@ def deserialize_vectorizer(vectorizer_str):
 def save_to_csv(**kwargs):
     ti = kwargs['ti']
     df = ti.xcom_pull(key=f'data', task_ids=f'vectorize_data')
-    df.to_csv('/opt/airflow/processed_data/processed_data.csv', index=False)
+    processed_data_dir = '/opt/airflow/processed_data/'
+    os.makedirs(processed_data_dir, exist_ok=True)
+
+    pd.DataFrame(df).to_csv('/opt/airflow/processed_data/processed_data.csv', index=False)
 
 def visualize(**kwargs):
     ti = kwargs['ti']
     df = ti.xcom_pull(key=f'data', task_ids=f'vectorize_data')
     figure, ax = spy_to_mpl(df.iloc[:, :-1].to_numpy())
+    visualizations_dir = '/opt/airflow/visualizations/'
+    os.makedirs(visualizations_dir, exist_ok=True)
     figure.savefig('/opt/airflow/visualizations/data.png')
 
 with DAG(
@@ -140,7 +149,7 @@ with DAG(
         provide_context=True,
     )
     drop_na = PythonOperator(
-        task_id='modify_labels',
+        task_id='drop_na',
         python_callable=drop_na,
         provide_context=True,
     )
@@ -164,6 +173,17 @@ with DAG(
         python_callable=save_to_csv,
         provide_context=True,
     )
-    download_data >> drop_na >> modify_labels >> drop_duplicates
-    drop_duplicates >> [vectorize_data, save_to_csv]
+    visualize = PythonOperator(
+        task_id='visualize',
+        python_callable=visualize,
+        provide_context=True
+    )
+    trigger_training = TriggerDagRunOperator(
+        task_id='trigger_training',
+        trigger_dag_id='model_training_dag',
+        wait_for_completion=False
+    )
+    download_data >> drop_na >> modify_labels >> drop_duplicates >> vectorize_data
+    vectorize_data >> [save_to_csv, visualize]
+    save_to_csv >> trigger_training
 

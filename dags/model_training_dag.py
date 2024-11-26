@@ -4,63 +4,51 @@ from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 import pandas as pd
 from pycaret.classification import setup, compare_models, finalize_model, predict_model, save_model, plot_model
-from sklearn.metrics import accuracy_score
-
+from sklearn.metrics import accuracy_score, classification_report
 
 default_args = {
     'owner': 'airflow',
     'depends_on_past': False,
     'email_on_failure': False,
     'email_on_retry': False,
-    'start_date': datetime(2024, 11, 24),
+    'start_date': datetime(2024, 1, 1),
     'schedule_interval': None,
     'catchup': False,
     'retries': 1,
-    'retry_delay': timedelta(minutes=5),
+    'retry_delay': timedelta(minutes=1),
 }
 
 def train_model_with_pycaret():
     df = pd.read_csv('/opt/airflow/processed_data/processed_data.csv')
 
+    unique_labels = df['labels'].unique()
+    print(f"Unique labels: {unique_labels}")
+
+    reports_dir = '/opt/airflow/reports/'
+    models_dir = '/opt/airflow/models/'
+    os.makedirs(reports_dir, exist_ok=True)
+    os.makedirs(models_dir, exist_ok=True)
+
     # Set up PyCaret
     clf_setup = setup(
         data=df,
-        target='labels',
         train_size=0.7,
-        verbose=False
+        verbose=False,
+        target = 'labels',
     )
 
     # Compare models and get the top 3
-    best_models = compare_models(n_select=3)
+    best_models = compare_models(n_select=3, sort='F1')
     final_model = finalize_model(best_models[0])
 
     reports_dir = '/opt/airflow/reports/'
     os.makedirs(reports_dir, exist_ok=True)
 
     # Evaluate and log metrics for the top 3 models
-    model_accuracies = {}
-    for i, model in enumerate(best_models):
-        predictions = predict_model(model)
-        accuracy = accuracy_score(predictions['Label'], predictions['Score'])
-        model_accuracies[f'top_model_{i+1}'] = accuracy
 
-        plot_path = os.path.join(reports_dir, f'top_model_{i+1}_lr.png')
-        plot_model(model, plot="lr", save=True)  # Example: Logistic Regression plot
-        os.rename("LR.png", plot_path)
-
-    save_model(final_model, '/opt/airflow/models/best_model')
-
-    # Save evaluation metrics and accuracies to a text file
-    metrics = predict_model(final_model)[['Label', 'Score']].describe().to_string()
-    with open(os.path.join(reports_dir, 'evaluation_report.txt'), 'w') as f:
-        f.write("Model Accuracies:\n")
-        for model_name, accuracy in model_accuracies.items():
-            f.write(f"{model_name}: {accuracy}\n")
-        f.write("\nFinal Model Metrics:\n")
-        f.write(metrics)
 
 with DAG(
-        dag_id='model_training_with_pycaret',
+        dag_id='model_training_dag',
         default_args=default_args
 ) as dag:
     train_model_task = PythonOperator(
