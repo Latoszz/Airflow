@@ -5,14 +5,11 @@ import re
 from datetime import datetime, timedelta
 
 import kagglehub
-import nltk
 import numpy as np
 import pandas as pd
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
-from matspy import spy_to_mpl
-from nltk.tokenize import word_tokenize
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 default_args = {
@@ -28,8 +25,6 @@ default_args = {
 }
 home_dir= '/opt/airflow/'
 
-#[2024-11-26, 19:58:53 UTC] {warnings.py:110} WARNING - /home/***/.local/lib/python3.11/site-packages/sklearn/metrics/_classification.py:1561: UserWarning: Note that pos_label (set to 'sexist 4. prejudiced discussions -supporting systemic discrimination against women as a group') is ignored when average != 'binary' (got 'weighted'). You may use labels=[pos_label] to specify a single positive class.
-#TODO why problem with only (this label)
 def download_data(**kwargs):
     # Download dataset
     path = kagglehub.dataset_download("aadyasingh55/sexism-detection-in-english-texts")
@@ -68,6 +63,7 @@ def modify_labels(df=None, **kwargs):
     df["labels"] = df[["label_sexist", "label_category", "label_vector"]].apply(lambda x: ' '.join(x), axis=1)
 
     df['labels'] = df['labels'].replace('not sexist none none', 'not sexist')
+
     df = df[["text", "labels"]]
     print(df.shape)
     kwargs['ti'].xcom_push(key=f'data', value=df)
@@ -82,19 +78,26 @@ def drop_dupes(df=None, **kwargs):
     df = pd.DataFrame(df)
 
     df.drop_duplicates(inplace=True)
+
     kwargs['ti'].xcom_push(key=f'data', value=df)
 
     return df
 
 def preprocess_text(text):
     text = text.lower()
-    text = re.sub("[^a-z0-9]", " ", text)
+    # Remove ' when not part of a contraction
+    text = re.sub(r"(?<![a-zA-Z])'|'(?![a-zA-Z])", " ", text)
+    # Replace non-alphanumeric chars (except apostrophes)
+    text = re.sub(r"[^a-zA-Z0-9']+", " ",text)
     text = re.sub("(\s)+", " ", text)
     return text
 
 def custom_tokenizer(text):
     text = preprocess_text(text)
-    return word_tokenize(text)
+    tokens = text.split()
+    # Remove single-letter words
+    filtered_tokens = [token for token in tokens if len(token) > 1]
+    return filtered_tokens
 
 # Vectorize data
 def vectorize_data(given_vectorizer=None, df=None, **kwargs):
@@ -107,10 +110,11 @@ def vectorize_data(given_vectorizer=None, df=None, **kwargs):
         given_vectorizer = TfidfVectorizer(
             stop_words="english",
             min_df=10,
-            max_features=400,
+            max_features=100,
             tokenizer=custom_tokenizer
         )
         X = given_vectorizer.fit_transform(df['text'])
+        print(np.shape(X))
         vectorizer = serialize_vectorizer(given_vectorizer)
     else:
         # Deserialize the vectorizer if it's passed as a string
@@ -153,9 +157,6 @@ def save_to_csv(df=None, **kwargs):
 
 
 if __name__ == '__main__':
-    #nltk.download('punkt')
-    nltk.download('punkt_tab')
-
     home_dir = ''
     mydf = download_data()
     mydf = drop_na(mydf)

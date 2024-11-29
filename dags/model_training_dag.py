@@ -4,6 +4,7 @@ from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 import pandas as pd
 from pycaret.classification import *
+
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split
 
@@ -19,12 +20,12 @@ default_args = {
     'retry_delay': timedelta(minutes=1),
 }
 home_dir= '/opt/airflow/'
-
 def train_model_with_pycaret():
     df = pd.read_csv(f'{home_dir}processed_data/processed_data.csv')
 
     unique_labels = df['labels'].unique()
-    print(f"Unique labels: {unique_labels}")
+    unique_labels.sort()
+    print(f"Unique labels:\n{unique_labels}")
 
     reports_dir = f'{home_dir}reports/'
     models_dir = f'{home_dir}models/'
@@ -36,26 +37,24 @@ def train_model_with_pycaret():
     clf_setup = setup(
         data=train,
         test_data=test,
-        verbose=False,
         target = 'labels',
         n_jobs=1
     )
 
-    #top models printed at the end of comparison
-    best_models = compare_models(n_select=5, sort='F1_weighted')
+    best_models = compare_models(n_select=5, sort='F1')
     comparison_results = pull()
 
     final_model = finalize_model(best_models[0])
+    save_model(final_model,f"{models_dir}best_model",)
 
 
     with open(f'{reports_dir}evaluation_report.txt', 'w') as f:
         f.write("Top models and their F1_weighted scores:\n")
         for i, model in enumerate(best_models):
             model_name = type(model).__name__  # Get the model's name
-            f1_weighted_score = comparison_results.loc[comparison_results.index[i], 'F1_weighted']
+            f1_weighted_score = comparison_results.loc[comparison_results.index[i], 'F1']
             f.write(f"{i + 1}. {model_name}: {f1_weighted_score:.4f}\n")
 
-    save_model(final_model,f"{models_dir}best_model",)
 
 if __name__ == '__main__':
     home_dir=''
