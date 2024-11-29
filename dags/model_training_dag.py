@@ -17,15 +17,16 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
 }
+home_dir= '/opt/airflow/'
 
 def train_model_with_pycaret():
-    df = pd.read_csv('/opt/airflow/processed_data/processed_data.csv')
+    df = pd.read_csv(f'{home_dir}processed_data/processed_data.csv')
 
     unique_labels = df['labels'].unique()
     print(f"Unique labels: {unique_labels}")
 
-    reports_dir = '/opt/airflow/reports/'
-    models_dir = '/opt/airflow/models/'
+    reports_dir = f'{home_dir}reports/'
+    models_dir = f'{home_dir}models/'
     os.makedirs(reports_dir, exist_ok=True)
     os.makedirs(models_dir, exist_ok=True)
 
@@ -35,17 +36,21 @@ def train_model_with_pycaret():
         train_size=0.7,
         verbose=False,
         target = 'labels',
+        n_jobs=1
     )
 
     # Compare models and get the top 3
-    best_models = compare_models(n_select=3, sort='F1')
+    best_models = compare_models(n_select=3, sort='F1_weighted')
     final_model = finalize_model(best_models[0])
 
-    reports_dir = '/opt/airflow/reports/'
+    reports_dir = f'{home_dir}reports/'
     os.makedirs(reports_dir, exist_ok=True)
 
     # Evaluate and log metrics for the top 3 models
 
+if __name__ == '__main__':
+    home_dir=''
+    train_model_with_pycaret()
 
 with DAG(
         dag_id='model_training_dag',
