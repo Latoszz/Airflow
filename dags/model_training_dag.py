@@ -33,7 +33,6 @@ def train_model_with_pycaret():
     os.makedirs(models_dir, exist_ok=True)
 
     train, test = train_test_split(df,test_size=0.3)
-    # Set up PyCaret
     clf_setup = setup(
         data=train,
         test_data=test,
@@ -51,7 +50,7 @@ def train_model_with_pycaret():
     with open(f'{reports_dir}evaluation_report.txt', 'w') as f:
         f.write("Top models and their F1_weighted scores:\n")
         for i, model in enumerate(best_models):
-            model_name = type(model).__name__  # Get the model's name
+            model_name = type(model).__name__ 
             f1_weighted_score = comparison_results.loc[comparison_results.index[i], 'F1']
             f.write(f"{i + 1}. {model_name}: {f1_weighted_score:.4f}\n")
 
