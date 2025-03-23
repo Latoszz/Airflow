@@ -53,8 +53,8 @@ def get_dataframe_from_sheet(sheet_from, **kwargs):
 
 
 def upload_dataframe_to_sheet(df, SHEET_NAME):
-    # Convert the DataFrame to a list of lists (Google Sheets API format)
-    data = [df.columns.tolist()] + df.values.tolist()  # Add headers
+    # Convert the Dataframe to a list of lists 
+    data = [df.columns.tolist()] + df.values.tolist()
     try:
         # get the worksheet
         worksheet = client.open_by_key(SHEETS_ID).worksheet(SHEET_NAME)
@@ -287,7 +287,6 @@ with DAG(
     )
 
     # Define task dependencies
-    # we need for the prepare_data_train, to finish before starting prepare_data_test, thus the graph cannot be two separate task queues
     download_train >> drop_na_train >> modify_labels_train >> prepare_data_train >> upload_train
     download_test >> drop_na_test >> modify_labels_test
     [prepare_data_train, modify_labels_test] >> prepare_data_test >> upload_test
